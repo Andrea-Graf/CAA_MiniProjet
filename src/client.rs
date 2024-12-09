@@ -7,7 +7,7 @@ use dryoc::dryocbox::{KeyPair, NewByteArray};
 use dryoc::dryocsecretbox::DryocSecretBox;
 use dryoc::kx::SecretKey;
 use dryoc::pwhash::*;
-use dryoc::sign::PublicKey;
+use dryoc::sign::{PublicKey, SigningKeyPair};
 
 pub struct Client {
     pub username: String,
@@ -38,7 +38,7 @@ impl Client {
         let key =pass_hash.0[64..].to_vec(); // 256 bits = 32 bytes
 
         let key_encryption = KeyPair::gen();
-        let key_signature = KeyPair::gen();
+        let key_signature = SigningKeyPair::gen_with_defaults();
 
         let nonce_encrypt = Nonce::gen();
         let nonce_signature = Nonce::gen();

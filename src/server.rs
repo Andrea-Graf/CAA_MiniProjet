@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 use anyhow::anyhow;
 use anyhow::Result;
+use dryoc::classic::crypto_box::PublicKey;
+use dryoc::dryocbox::{DryocBox, Mac};
 use dryoc::pwhash::Salt;
+use dryoc::sign::SigningKeyPair;
+use dryoc::types::StackByteArray;
 use inquire::validator::CustomTypeValidator;
 use crate::client::Client;
 
@@ -43,8 +47,14 @@ impl Server {
             Err(anyhow!("User not found"))
         }
     }
-
-    pub fn send_message(){
+    pub fn get_public_key(&self, username: &str) -> Result<&dryoc::keypair::PublicKey, anyhow::Error> {
+        if let Some(client) = self.users.get(username) {
+            Ok(&client.public_key_encryption)
+        } else {
+            Err(anyhow!("User not found"))
+        }
+    }
+    pub fn send_message(&self, authenticate_data : Vec<u8>, nonce: StackByteArray<24>, message_encrypted: DryocBox<PublicKey, Mac, Vec<u8>>) -> () {
         // TODO
     }
     pub fn receive_message(){

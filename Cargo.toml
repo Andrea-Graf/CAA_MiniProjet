@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.93"
 argon2 = "0.5.3"
-inquire = "0.7.5"
+inquire = { version = "0.7.5", features = ["date"] }
 qr2term = "0.3.3"
 thiserror = "2.0.3"
 totp-rs = { version = "5.6.0", features = ["otpauth"] }

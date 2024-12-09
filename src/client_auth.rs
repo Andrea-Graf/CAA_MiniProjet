@@ -1,14 +1,15 @@
 use inquire::Password;
 
-use dryoc::*;
-use dryoc::auth::Mac;
-use dryoc::classic::crypto_box::Nonce;
-use dryoc::dryocbox::{KeyPair, NewByteArray, StackByteArray};
+use dryoc::dryocbox::*;
 use dryoc::dryocsecretbox::DryocSecretBox;
 use dryoc::kx::SecretKey;
 use dryoc::pwhash::*;
-use dryoc::sign::PublicKey;
 use crate::client::Client;
+
+use dryoc::kx::*;
+use dryoc::sign::*;
+use inquire::formatter::DateFormatter;
+use crate::server::Server;
 
 pub struct ClientAuth {
     pub username: String,
@@ -51,8 +52,31 @@ impl ClientAuth {
         let private_key_encryption = private_key_encryption_ENCRYPT.decrypt_to_vec(&client.nonceEncrypt, &self.key).expect("unable to decrypt");
         let private_key_signature = private_key_signature_ENCRYPT.decrypt_to_vec(&client.nonceSignature, &self.key).expect("unable to decrypt");
 
-        self.private_key_encryption = SecretKey::from(&private_key_encryption);
-        self.private_key_signature = SecretKey::from(&private_key_signature);
+        // Convertir Vec<u8> en SecretKey
+        self.private_key_encryption = SecretKey::try_from(&private_key_encryption[..]).expect("unable to convert to SecretKey");
+        self.private_key_signature = SecretKey::try_from(&private_key_signature[..]).expect("unable to convert to SecretKey");
+    }
+
+    pub fn send_message(&self, recipient: &str, message: &str,date: &str, server: &Server) -> () {
+        let recipient_public_key = server.get_public_key(recipient).expect("unable to get public key");
+        let nonce = Nonce::default();
+
+        let message_encrypted =  DryocBox::encrypt_to_vecbox(
+            message,
+            &nonce,
+            recipient_public_key,
+            &self.private_key_encryption,
+        ).expect("unable to encrypt");
+
+        let mut authenticate_data: Vec<u8> = Vec::new();
+        authenticate_data.extend_from_slice(self.username.as_bytes());
+        authenticate_data.extend_from_slice(recipient.as_bytes());
+        authenticate_data.extend_from_slice(date.as_bytes());
+
+        let signing_key = SigningKeyPair::from_secret_key(&self.private_key_signature).expect("unable to create signing key");
+        let authenticate_data_signed = signing_key.sign(&authenticate_data);
+
+        server.send_message(&authenticate_data_signed, &nonce, &message_encrypted);
     }
 }
 
