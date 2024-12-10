@@ -5,7 +5,7 @@ use dryoc::dryocsecretbox::DryocSecretBox;
 use dryoc::kx::SecretKey;
 use dryoc::pwhash::*;
 use crate::client::Client;
-
+use crate::authenticate_data::AuthenticateData;
 use dryoc::kx::*;
 use dryoc::sign::*;
 use inquire::formatter::DateFormatter;
@@ -16,16 +16,19 @@ pub struct ClientAuth {
     pub password_hash: Vec<u8>,
     pub key : Vec<u8>,
     pub private_key_encryption: SecretKey,
-    pub private_key_signature: SecretKey,
+    pub private_key_signature: StackByteArray<64>,
     pub salt: Salt,
 }
 
 impl ClientAuth {
     pub fn new(password: &str, salt: Salt) -> Self {
+        let config = Config::default();
+        let custom_config = config.with_hash_length(96);
+
         let output_argon2: VecPwHash = PwHash::hash_with_salt(
             &password.as_bytes().to_vec(),
             salt.clone(),
-            Config::default(),
+            custom_config,
         ).expect("unable to hash password with salt");
 
         let pass_hash = output_argon2.into_parts();
@@ -37,7 +40,7 @@ impl ClientAuth {
             password_hash,
             key,
             private_key_encryption: SecretKey::default(),
-            private_key_signature: SecretKey::default(),
+            private_key_signature: StackByteArray::<64>::default(),
             salt,
         }
 
@@ -52,31 +55,30 @@ impl ClientAuth {
         let private_key_encryption = private_key_encryption_ENCRYPT.decrypt_to_vec(&client.nonceEncrypt, &self.key).expect("unable to decrypt");
         let private_key_signature = private_key_signature_ENCRYPT.decrypt_to_vec(&client.nonceSignature, &self.key).expect("unable to decrypt");
 
+
         // Convertir Vec<u8> en SecretKey
         self.private_key_encryption = SecretKey::try_from(&private_key_encryption[..]).expect("unable to convert to SecretKey");
-        self.private_key_signature = SecretKey::try_from(&private_key_signature[..]).expect("unable to convert to SecretKey");
+        self.private_key_signature = StackByteArray::<64>::try_from(&private_key_signature[..]).expect("unable to convert to SecretKey");
     }
 
-    pub fn send_message(&self, recipient: &str, message: &str,date: &str, server: &Server) -> () {
+    pub fn send_message(&self, recipient: &str, message: &str, date: &str, server: &mut Server) -> () {
         let recipient_public_key = server.get_public_key(recipient).expect("unable to get public key");
         let nonce = Nonce::default();
 
         let message_encrypted =  DryocBox::encrypt_to_vecbox(
-            message,
+            message.as_bytes(),
             &nonce,
             recipient_public_key,
             &self.private_key_encryption,
         ).expect("unable to encrypt");
 
-        let mut authenticate_data: Vec<u8> = Vec::new();
-        authenticate_data.extend_from_slice(self.username.as_bytes());
-        authenticate_data.extend_from_slice(recipient.as_bytes());
-        authenticate_data.extend_from_slice(date.as_bytes());
+        let message_encrypted_box = message_encrypted.to_vec();
 
-        let signing_key = SigningKeyPair::from_secret_key(&self.private_key_signature).expect("unable to create signing key");
-        let authenticate_data_signed = signing_key.sign(&authenticate_data);
+        let key: dryoc::sign::SigningKeyPair<dryoc::sign::PublicKey, dryoc::dryocbox::StackByteArray<64>> = SigningKeyPair::from_secret_key(self.private_key_signature.clone());
+        let authenticate_data = AuthenticateData::new(self.username.clone(), recipient.to_string(), date.to_string(), &key);
 
-        server.send_message(&authenticate_data_signed, &nonce, &message_encrypted);
+
+        server.send_message(authenticate_data, nonce, message_encrypted_box);
     }
 }
 

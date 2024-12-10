@@ -8,6 +8,8 @@ use dryoc::dryocsecretbox::DryocSecretBox;
 use dryoc::kx::SecretKey;
 use dryoc::pwhash::*;
 use dryoc::sign::{PublicKey, SigningKeyPair};
+use dryoc::types::StackByteArray;
+use crate::message_app::MessageApp;
 
 pub struct Client {
     pub username: String,
@@ -15,10 +17,11 @@ pub struct Client {
     pub private_key_encryption_ENCRYPT: Vec<u8>,
     pub public_key_encryption: PublicKey,
     pub private_key_signature_ENCRYPT: Vec<u8>,
-    pub public_key_signature: PublicKey,
+    pub public_key_signature: StackByteArray<32>,
     pub salt: Salt,
     pub nonceEncrypt: Nonce,
     pub nonceSignature: Nonce,
+    pub boiteDeReception: Vec<MessageApp>,
 }
 
 impl Client {
@@ -27,10 +30,13 @@ impl Client {
         salt.resize(dryoc::constants::CRYPTO_PWHASH_SALTBYTES, 0);
         dryoc::rng::copy_randombytes(&mut salt);
 
+        let config = Config::default();
+        let custom_config = config.with_hash_length(96);
+
         let output_argon2: VecPwHash = PwHash::hash_with_salt(
             &password.as_bytes().to_vec(),
             salt.clone(),
-            Config::default(),
+            custom_config,
         ).expect("unable to hash password with salt");
 
         let pass_hash = output_argon2.into_parts();
@@ -42,8 +48,9 @@ impl Client {
 
         let nonce_encrypt = Nonce::gen();
         let nonce_signature = Nonce::gen();
-        let pkEn = DryocSecretBox::encrypt_to_vecbox(&key_encryption.secret_key, &nonce_encrypt, &key);
-        let pkSi = DryocSecretBox::encrypt_to_vecbox(&key_signature.secret_key, &nonce_signature, &key);
+
+        let pkEn = DryocSecretBox::encrypt_to_vecbox(&key_encryption.secret_key.to_vec(), &nonce_encrypt, &key);
+        let pkSi = DryocSecretBox::encrypt_to_vecbox(&key_signature.secret_key.to_vec(), &nonce_signature, &key);
 
         let private_key_encryption_ENCRYPT = pkEn.to_vec();
         let private_key_signature_ENCRYPT = pkSi.to_vec();
@@ -60,6 +67,7 @@ impl Client {
             salt,
             nonceEncrypt: nonce_encrypt,
             nonceSignature: nonce_signature,
+            boiteDeReception: Vec::new(),
         }
     }
 }

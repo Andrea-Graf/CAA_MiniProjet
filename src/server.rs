@@ -1,13 +1,18 @@
 use std::collections::HashMap;
 use anyhow::anyhow;
 use anyhow::Result;
-use dryoc::classic::crypto_box::PublicKey;
-use dryoc::dryocbox::{DryocBox, Mac};
+use chrono::NaiveDateTime;
+use dryoc::classic::crypto_box::{Nonce, PublicKey};
+use dryoc::dryocbox::{ByteArray, DryocBox, Mac};
 use dryoc::pwhash::Salt;
-use dryoc::sign::SigningKeyPair;
+use dryoc::sign::{Message, SignedMessage, SigningKeyPair};
 use dryoc::types::StackByteArray;
+use inquire::formatter::DateFormatter;
 use inquire::validator::CustomTypeValidator;
+use crate::authenticate_data::AuthenticateData;
 use crate::client::Client;
+use crate::client_auth::ClientAuth;
+use crate::message_app::MessageApp;
 
 pub struct Server{
     users: HashMap<String, Client>,
@@ -54,11 +59,27 @@ impl Server {
             Err(anyhow!("User not found"))
         }
     }
-    pub fn send_message(&self, authenticate_data : Vec<u8>, nonce: StackByteArray<24>, message_encrypted: DryocBox<PublicKey, Mac, Vec<u8>>) -> () {
-        // TODO
+    pub fn send_message(&mut self, authenticate_data_signed: AuthenticateData, nonce: StackByteArray<24>, message_encrypted: Vec<u8>) {
+        let messageApp = MessageApp::new(authenticate_data_signed.clone(), nonce, message_encrypted);
+        &self.users.get_mut(&authenticate_data_signed.sender).unwrap().boiteDeReception.push(messageApp);
+
     }
-    pub fn receive_message(){
-        // TODO
+    pub fn receive_message(&self, client: &ClientAuth) -> Vec<MessageApp> {
+
+        let mut boiteDeReception = &self.users.get(&client.username).unwrap().boiteDeReception;
+        let mut boiteDeReceptionAutorise = Vec::new();
+
+        let current_date_time = chrono::Utc::now().naive_utc();
+
+        for  messageApp in boiteDeReception {
+            let date_time = NaiveDateTime::parse_from_str(&messageApp.authenticate_data.date, "%M-%H-%d-%m-%Y");
+            let mut messageAutorise  = messageApp.clone();
+            if date_time.unwrap() < current_date_time {
+                messageAutorise.nonce = StackByteArray::<24>::default();
+            }
+            boiteDeReceptionAutorise.push(messageAutorise);
+        }
+        boiteDeReceptionAutorise
     }
 
 
