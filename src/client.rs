@@ -56,7 +56,6 @@ impl Client {
         let private_key_signature_ENCRYPT = pkSi.to_vec();
 
 
-
         Client {
             username,
             password_hash,
@@ -65,8 +64,8 @@ impl Client {
             private_key_signature_ENCRYPT,
             public_key_signature: key_signature.public_key.clone(),
             salt,
-            nonceEncrypt: nonce_encrypt,
-            nonceSignature: nonce_signature,
+            nonceEncrypt: nonce_encrypt.clone(),
+            nonceSignature: nonce_signature.clone(),
             boiteDeReception: Vec::new(),
         }
     }

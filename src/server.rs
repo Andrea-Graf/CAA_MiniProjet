@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use anyhow::anyhow;
 use anyhow::Result;
-use chrono::NaiveDateTime;
+use chrono::{Duration, NaiveDateTime};
 use dryoc::classic::crypto_box::{Nonce, PublicKey};
 use dryoc::dryocbox::{ByteArray, DryocBox, Mac};
 use dryoc::pwhash::Salt;
@@ -59,23 +59,24 @@ impl Server {
             Err(anyhow!("User not found"))
         }
     }
-    pub fn send_message(&mut self, authenticate_data_signed: AuthenticateData, nonce: StackByteArray<24>, message_encrypted: Vec<u8>) {
-        let messageApp = MessageApp::new(authenticate_data_signed.clone(), nonce, message_encrypted);
+    pub fn send_message(&mut self, authenticate_data_signed: AuthenticateData, nonce_file: StackByteArray<24>,nonce_file_name: StackByteArray<24>, file_encrypted: Vec<u8>, file_name_encrypted: Vec<u8>) -> () {
+        let messageApp = MessageApp::new(authenticate_data_signed.clone(), nonce_file, nonce_file_name, file_encrypted, file_name_encrypted);
         &self.users.get_mut(&authenticate_data_signed.sender).unwrap().boiteDeReception.push(messageApp);
-
     }
     pub fn receive_message(&self, client: &ClientAuth) -> Vec<MessageApp> {
 
         let mut boiteDeReception = &self.users.get(&client.username).unwrap().boiteDeReception;
         let mut boiteDeReceptionAutorise = Vec::new();
 
-        let current_date_time = chrono::Utc::now().naive_utc();
+        let current_date_time = chrono::Utc::now().naive_utc() + Duration::hours(1);
 
         for  messageApp in boiteDeReception {
             let date_time = NaiveDateTime::parse_from_str(&messageApp.authenticate_data.date, "%M-%H-%d-%m-%Y");
             let mut messageAutorise  = messageApp.clone();
-            if date_time.unwrap() < current_date_time {
-                messageAutorise.nonce = StackByteArray::<24>::default();
+            println!("{:?}", date_time.unwrap());
+            println!("{:?}", current_date_time);
+            if date_time.unwrap() > current_date_time {
+                messageAutorise.nonce_file = StackByteArray::<24>::default();
             }
             boiteDeReceptionAutorise.push(messageAutorise);
         }

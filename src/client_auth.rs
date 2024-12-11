@@ -45,7 +45,7 @@ impl ClientAuth {
         }
 
     }
-    pub fn Complete(&mut self, client: Client) -> () {
+    pub fn Complete(&mut self, client: &Client) -> () {
         self.username = client.username.clone();
 
         let private_key_encryption_ENCRYPT = DryocSecretBox::from_bytes(&client.private_key_encryption_ENCRYPT).expect("unable to load box");
@@ -61,24 +61,33 @@ impl ClientAuth {
         self.private_key_signature = StackByteArray::<64>::try_from(&private_key_signature[..]).expect("unable to convert to SecretKey");
     }
 
-    pub fn send_message(&self, recipient: &str, message: &str, date: &str, server: &mut Server) -> () {
+    pub fn send_message(&self, recipient: &str,file_name: &str , file: Vec<u8>, date: &str, server: &mut Server) -> () {
         let recipient_public_key = server.get_public_key(recipient).expect("unable to get public key");
-        let nonce = Nonce::default();
+        let nonce_file = Nonce::gen();
+        let nonce_file_name = Nonce::gen();
 
-        let message_encrypted =  DryocBox::encrypt_to_vecbox(
-            message.as_bytes(),
-            &nonce,
-            recipient_public_key,
+        let file_encrypted =  DryocBox::encrypt_to_vecbox(
+            file.as_slice(),
+            &nonce_file,
+            &recipient_public_key,
             &self.private_key_encryption,
         ).expect("unable to encrypt");
 
-        let message_encrypted_box = message_encrypted.to_vec();
+        let file_name_encrypted = DryocBox::encrypt_to_vecbox(
+            file_name.as_bytes(),
+            &nonce_file_name,
+            &recipient_public_key,
+            &self.private_key_encryption,
+        ).expect("unable to encrypt");
+
+        let file_encrypted_box = file_encrypted.to_vec();
+        let file_name_encrypted_box = file_name_encrypted.to_vec();
 
         let key: dryoc::sign::SigningKeyPair<dryoc::sign::PublicKey, dryoc::dryocbox::StackByteArray<64>> = SigningKeyPair::from_secret_key(self.private_key_signature.clone());
         let authenticate_data = AuthenticateData::new(self.username.clone(), recipient.to_string(), date.to_string(), &key);
 
 
-        server.send_message(authenticate_data, nonce, message_encrypted_box);
+        server.send_message(authenticate_data, nonce_file, nonce_file_name, file_encrypted_box, file_name_encrypted_box);
     }
 }
 
