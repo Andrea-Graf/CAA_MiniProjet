@@ -63,7 +63,7 @@ impl ClientAuth {
         self.private_key_signature = StackByteArray::<64>::try_from(&private_key_signature[..]).expect("unable to convert to SecretKey");
     }
 
-    pub fn send_message(&self, recipient: &str,file_name: &str , file: Vec<u8>, date: &str, server: &mut Server) -> () {
+    pub fn send_message(&self, recipient: &str,file_name: &str , file: Vec<u8>, date: &str, server: &mut Server) -> Result<(), Error> {
         let recipient_public_key = server.get_public_key(recipient).expect("unable to get public key");
         let nonce_file = Nonce::gen();
         let nonce_file_name = Nonce::gen();
@@ -89,7 +89,8 @@ impl ClientAuth {
         let authenticate_data = AuthenticateData::new(self.username.clone(), recipient.to_string(), date.to_string(), &key);
 
 
-        server.send_message(&self, authenticate_data, nonce_file, nonce_file_name, file_encrypted_box, file_name_encrypted_box);
+        server.send_message(&self.username, &self.password_hash, authenticate_data, nonce_file, nonce_file_name, file_encrypted_box, file_name_encrypted_box)?;
+        Ok(())
     }
     // Méthode pour réinitialiser le mot de passe
     pub fn reset_password(&self, new_password: &str, server: &mut Server) -> Result<(), Error> {
@@ -116,13 +117,13 @@ impl ClientAuth {
         let private_key_encryption = DryocSecretBox::encrypt_to_vecbox(&self.private_key_encryption, &nonce_encrypt, &key).to_vec();
         let private_key_signature = DryocSecretBox::encrypt_to_vecbox(&self.private_key_signature, &nonce_signature, &key).to_vec();
 
-        server.reset_password(self, password_hash, salt, private_key_encryption, private_key_signature, nonce_encrypt, nonce_signature)?;
+        server.reset_password(&self.username, &self.password_hash, password_hash, salt, private_key_encryption, private_key_signature, nonce_encrypt, nonce_signature)?;
         Ok(())
     }
 
     // Méthode pour recevoir des messages
     pub fn receive_message(&self, server: &Server) -> Result<(),Error> {
-        let boite_de_reception = server.receive_message(self);
+        let boite_de_reception = server.receive_message(&self.username, &self.password_hash)?;
         let keysign: dryoc::sign::SigningKeyPair<dryoc::sign::PublicKey, dryoc::dryocbox::StackByteArray<64>> = SigningKeyPair::from_secret_key(self.private_key_signature.clone());
 
         let mut user_reception_dir = format!("reception/{}", &self.username);

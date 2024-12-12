@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use anyhow::anyhow;
+use anyhow::{anyhow, Error};
 use anyhow::Result;
 use chrono::{Duration, NaiveDateTime};
 use dryoc::classic::crypto_box::{Nonce, PublicKey};
@@ -24,9 +24,9 @@ impl Server {
             users: HashMap::new(),
         }
     }
-    pub fn verify_auth(&self, client_auth: &ClientAuth) -> Result<()> {
-        if let Some(client) = self.users.get(&client_auth.username) {
-            if client.password_hash == client_auth.password_hash {
+    pub fn verify_auth(&self, username: &str, password_hash: &[u8]) -> std::result::Result<(), Error> {
+        if let Some(client) = self.users.get(username) {
+            if client.password_hash == password_hash {
                 Ok(())
             } else {
                 Err(anyhow!("Authentication failed: password hash mismatch"))
@@ -70,42 +70,41 @@ impl Server {
             Err(anyhow!("User not found"))
         }
     }
-    pub fn send_message(&mut self, client_auth: &ClientAuth , authenticate_data_signed: AuthenticateData, nonce_file: StackByteArray<24>,nonce_file_name: StackByteArray<24>, file_encrypted: Vec<u8>, file_name_encrypted: Vec<u8>) -> () {
-        &self.verify_auth(client_auth);
+    pub fn send_message(&mut self, username: &str, password_hash: &[u8], authenticate_data_signed: AuthenticateData, nonce_file: StackByteArray<24>, nonce_file_name: StackByteArray<24>, file_encrypted: Vec<u8>, file_name_encrypted: Vec<u8>) -> Result<()> {
+        self.verify_auth(username, password_hash)?;
 
-        let messageApp = MessageApp::new(authenticate_data_signed.clone(), nonce_file, nonce_file_name, file_encrypted, file_name_encrypted);
-        &self.users.get_mut(&authenticate_data_signed.receiver).unwrap().boiteDeReception.push(messageApp);
+        let message_app = MessageApp::new(authenticate_data_signed.clone(), nonce_file, nonce_file_name, file_encrypted, file_name_encrypted);
+        self.users.get_mut(&authenticate_data_signed.receiver).unwrap().boiteDeReception.push(message_app);
+        Ok(())
     }
-    pub fn receive_message(&self, client_auth: &ClientAuth) -> Vec<MessageApp> {
+    pub fn receive_message(&self, username: &str, password_hash: &[u8]) -> Result<Vec<MessageApp>> {
+        self.verify_auth(username, password_hash)?;
 
-        &self.verify_auth(client_auth);
-
-        let mut boiteDeReception = &self.users.get(&client_auth.username).unwrap().boiteDeReception;
-        let mut boiteDeReceptionAutorise = Vec::new();
+        let boite_de_reception = &self.users.get(username).unwrap().boiteDeReception;
+        let mut boite_de_reception_autorise = Vec::new();
 
         let current_date_time = chrono::Utc::now().naive_utc() + Duration::hours(1);
 
-        for  messageApp in boiteDeReception {
-            let date_time = NaiveDateTime::parse_from_str(&messageApp.authenticate_data.date, "%M-%H-%d-%m-%Y");
-            let mut messageAutorise  = messageApp.clone();
+        for message_app in boite_de_reception {
+            let date_time = NaiveDateTime::parse_from_str(&message_app.authenticate_data.date, "%M-%H-%d-%m-%Y");
+            let mut message_autorise = message_app.clone();
             if date_time.unwrap() > current_date_time {
-                messageAutorise.nonce_file = StackByteArray::<24>::default();
+                message_autorise.nonce_file = StackByteArray::<24>::default();
             }
-            boiteDeReceptionAutorise.push(messageAutorise);
+            boite_de_reception_autorise.push(message_autorise);
         }
-        boiteDeReceptionAutorise
+        Ok(boite_de_reception_autorise)
     }
-    pub fn reset_password(&mut self, client_auth: &ClientAuth, new_hash: Vec<u8>, new_sel: Salt,private_key_encryption : Vec<u8>, private_key_signature : Vec<u8> , nonce_encrypt: Nonce, nonce_signature:Nonce) -> Result<()> {
-        &self.verify_auth(&client_auth)?;
+    pub fn reset_password(&mut self, username: &str, password_hash: &[u8], new_hash: Vec<u8>, new_salt: Salt, private_key_encryption: Vec<u8>, private_key_signature: Vec<u8>, nonce_encrypt: Nonce, nonce_signature: Nonce) -> Result<()> {
+        self.verify_auth(username, password_hash)?;
 
-        self.users.get_mut(&client_auth.username).unwrap().password_hash = new_hash;
-        self.users.get_mut(&client_auth.username).unwrap().salt = new_sel;
-        self.users.get_mut(&client_auth.username).unwrap().private_key_encryption_ENCRYPT = private_key_encryption;
-        self.users.get_mut(&client_auth.username).unwrap().private_key_signature_ENCRYPT = private_key_signature;
-        self.users.get_mut(&client_auth.username).unwrap().nonceEncrypt = nonce_encrypt;
-        self.users.get_mut(&client_auth.username).unwrap().nonceSignature = nonce_signature;
-
-
+        let user = self.users.get_mut(username).unwrap();
+        user.password_hash = new_hash;
+        user.salt = new_salt;
+        user.private_key_encryption_ENCRYPT = private_key_encryption;
+        user.private_key_signature_ENCRYPT = private_key_signature;
+        user.nonceEncrypt = nonce_encrypt;
+        user.nonceSignature = nonce_signature;
 
         Ok(())
     }
