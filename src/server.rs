@@ -24,6 +24,17 @@ impl Server {
             users: HashMap::new(),
         }
     }
+    pub fn verify_auth(&self, client_auth: &ClientAuth) -> Result<()> {
+        if let Some(client) = self.users.get(&client_auth.username) {
+            if client.password_hash == client_auth.password_hash {
+                Ok(())
+            } else {
+                Err(anyhow!("Authentication failed: password hash mismatch"))
+            }
+        } else {
+            Err(anyhow!("Authentication failed: user not found"))
+        }
+    }
 
     pub fn register(&mut self, client: Client) -> Result<()> {
         if self.users.contains_key(&client.username) {
@@ -59,13 +70,17 @@ impl Server {
             Err(anyhow!("User not found"))
         }
     }
-    pub fn send_message(&mut self, authenticate_data_signed: AuthenticateData, nonce_file: StackByteArray<24>,nonce_file_name: StackByteArray<24>, file_encrypted: Vec<u8>, file_name_encrypted: Vec<u8>) -> () {
+    pub fn send_message(&mut self, client_auth: &ClientAuth , authenticate_data_signed: AuthenticateData, nonce_file: StackByteArray<24>,nonce_file_name: StackByteArray<24>, file_encrypted: Vec<u8>, file_name_encrypted: Vec<u8>) -> () {
+        &self.verify_auth(client_auth);
+
         let messageApp = MessageApp::new(authenticate_data_signed.clone(), nonce_file, nonce_file_name, file_encrypted, file_name_encrypted);
         &self.users.get_mut(&authenticate_data_signed.sender).unwrap().boiteDeReception.push(messageApp);
     }
-    pub fn receive_message(&self, client: &ClientAuth) -> Vec<MessageApp> {
+    pub fn receive_message(&self, client_auth: &ClientAuth) -> Vec<MessageApp> {
 
-        let mut boiteDeReception = &self.users.get(&client.username).unwrap().boiteDeReception;
+        &self.verify_auth(client_auth);
+
+        let mut boiteDeReception = &self.users.get(&client_auth.username).unwrap().boiteDeReception;
         let mut boiteDeReceptionAutorise = Vec::new();
 
         let current_date_time = chrono::Utc::now().naive_utc() + Duration::hours(1);
@@ -73,14 +88,26 @@ impl Server {
         for  messageApp in boiteDeReception {
             let date_time = NaiveDateTime::parse_from_str(&messageApp.authenticate_data.date, "%M-%H-%d-%m-%Y");
             let mut messageAutorise  = messageApp.clone();
-            println!("{:?}", date_time.unwrap());
-            println!("{:?}", current_date_time);
             if date_time.unwrap() > current_date_time {
                 messageAutorise.nonce_file = StackByteArray::<24>::default();
             }
             boiteDeReceptionAutorise.push(messageAutorise);
         }
         boiteDeReceptionAutorise
+    }
+    pub fn reset_password(&mut self, client_auth: &ClientAuth, new_hash: Vec<u8>, new_sel: Salt,private_key_encryption : Vec<u8>, private_key_signature : Vec<u8> , nonce_encrypt: Nonce, nonce_signature:Nonce) -> Result<()> {
+        &self.verify_auth(&client_auth);
+
+        self.users.get_mut(&client_auth.username).unwrap().password_hash = new_hash;
+        self.users.get_mut(&client_auth.username).unwrap().salt = new_sel;
+        self.users.get_mut(&client_auth.username).unwrap().private_key_encryption_ENCRYPT = private_key_encryption;
+        self.users.get_mut(&client_auth.username).unwrap().private_key_signature_ENCRYPT = private_key_signature;
+        self.users.get_mut(&client_auth.username).unwrap().nonceEncrypt = nonce_encrypt;
+        self.users.get_mut(&client_auth.username).unwrap().nonceSignature = nonce_signature;
+
+
+
+        Ok(())
     }
 
 

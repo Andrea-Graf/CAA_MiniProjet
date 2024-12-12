@@ -87,7 +87,7 @@ impl ClientAuth {
         let authenticate_data = AuthenticateData::new(self.username.clone(), recipient.to_string(), date.to_string(), &key);
 
 
-        server.send_message(authenticate_data, nonce_file, nonce_file_name, file_encrypted_box, file_name_encrypted_box);
+        server.send_message(&self, authenticate_data, nonce_file, nonce_file_name, file_encrypted_box, file_name_encrypted_box);
     }
 }
 
