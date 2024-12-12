@@ -1,3 +1,5 @@
+use std::fs;
+use anyhow::Error;
 use inquire::Password;
 
 use dryoc::dryocbox::*;
@@ -88,6 +90,73 @@ impl ClientAuth {
 
 
         server.send_message(&self, authenticate_data, nonce_file, nonce_file_name, file_encrypted_box, file_name_encrypted_box);
+    }
+    // Méthode pour réinitialiser le mot de passe
+    pub fn reset_password(&self, new_password: &str, server: &mut Server) -> Result<(), Error> {
+        let mut salt = Salt::default();
+        salt.resize(dryoc::constants::CRYPTO_PWHASH_SALTBYTES, 0);
+        dryoc::rng::copy_randombytes(&mut salt);
+
+        let config = Config::default();
+        let custom_config = config.with_hash_length(96);
+
+        let output_argon2: VecPwHash = PwHash::hash_with_salt(
+            &new_password.as_bytes().to_vec(),
+            salt.clone(),
+            custom_config,
+        ).expect("unable to hash password with salt");
+
+        let pass_hash = output_argon2.into_parts();
+        let password_hash = pass_hash.0[..64].to_vec(); // 512 bits = 64 bytes
+        let key = pass_hash.0[64..].to_vec(); // 256 bits = 32 bytes
+
+        let nonce_encrypt = dryoc::classic::crypto_box::Nonce::gen();
+        let nonce_signature = dryoc::classic::crypto_box::Nonce::gen();;
+
+        let private_key_encryption = DryocSecretBox::encrypt_to_vecbox(&self.private_key_encryption, &nonce_encrypt, &key).to_vec();
+        let private_key_signature = DryocSecretBox::encrypt_to_vecbox(&self.private_key_signature, &nonce_signature, &key).to_vec();
+
+        server.reset_password(self, password_hash, salt, private_key_encryption, private_key_signature, nonce_encrypt, nonce_signature)?;
+        Ok(())
+    }
+
+    // Méthode pour recevoir des messages
+    pub fn receive_message(&self, server: &Server) -> Result<(),Error> {
+        let boite_de_reception = server.receive_message(self);
+        let keysign: dryoc::sign::SigningKeyPair<dryoc::sign::PublicKey, dryoc::dryocbox::StackByteArray<64>> = SigningKeyPair::from_secret_key(self.private_key_signature.clone());
+
+        let mut user_reception_dir = format!("reception/{}", &self.username);
+        fs::create_dir_all(&user_reception_dir)?;
+
+        for message_app in boite_de_reception {
+            println!("From: {}", message_app.authenticate_data.sender);
+            println!("Date: {}", message_app.authenticate_data.date);
+
+            let file_encrypted = DryocBox::from_bytes(&message_app.file_encrypted).expect("failed to read box");
+            let file_name_encrypted = DryocBox::from_bytes(&message_app.file_name_encrypted).expect("failed to read box");
+
+            let public_key_sender = server.get_public_key(&message_app.authenticate_data.sender)?;
+
+            let file_name_vec = file_name_encrypted.decrypt_to_vec(&message_app.nonce_file_name, &public_key_sender, &self.private_key_encryption)?;
+            let file_name = String::from_utf8(file_name_vec)?;
+            user_reception_dir.push_str(format!("/{}", file_name).as_str());
+
+            if !message_app.nonce_file.eq(&StackByteArray::<24>::default()) {
+                let file = file_encrypted.decrypt_to_vec(&message_app.nonce_file, &public_key_sender, &self.private_key_encryption)?;
+                fs::write(&user_reception_dir, file)?;
+            } else {
+                fs::write(&user_reception_dir, &message_app.file_encrypted)?;
+            }
+
+            println!("Message saved to {:?}", user_reception_dir);
+
+            if message_app.authenticate_data.verify_detached(&keysign) {
+                println!("Signature valid");
+            } else {
+                println!("Signature invalid");
+            }
+        }
+        Ok(())
     }
 }
 

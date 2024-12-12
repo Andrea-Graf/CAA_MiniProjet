@@ -74,7 +74,7 @@ impl Server {
         &self.verify_auth(client_auth);
 
         let messageApp = MessageApp::new(authenticate_data_signed.clone(), nonce_file, nonce_file_name, file_encrypted, file_name_encrypted);
-        &self.users.get_mut(&authenticate_data_signed.sender).unwrap().boiteDeReception.push(messageApp);
+        &self.users.get_mut(&authenticate_data_signed.receiver).unwrap().boiteDeReception.push(messageApp);
     }
     pub fn receive_message(&self, client_auth: &ClientAuth) -> Vec<MessageApp> {
 
@@ -96,7 +96,7 @@ impl Server {
         boiteDeReceptionAutorise
     }
     pub fn reset_password(&mut self, client_auth: &ClientAuth, new_hash: Vec<u8>, new_sel: Salt,private_key_encryption : Vec<u8>, private_key_signature : Vec<u8> , nonce_encrypt: Nonce, nonce_signature:Nonce) -> Result<()> {
-        &self.verify_auth(&client_auth);
+        &self.verify_auth(&client_auth)?;
 
         self.users.get_mut(&client_auth.username).unwrap().password_hash = new_hash;
         self.users.get_mut(&client_auth.username).unwrap().salt = new_sel;
