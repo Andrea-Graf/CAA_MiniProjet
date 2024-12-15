@@ -13,11 +13,6 @@ Ce rapport décrit l'architecture cryptographique et les choix effectués pour l
 - Considérer des adversaires actifs et un serveur honnête mais curieux.
 
 ## Architecture Cryptographique
-### Gestion des Clés
-- 2 paires de clé asymétrique généré par le user à la création du compte.  
-	- Une paires pour les chiffrements
-	- Une paires pour les signatures
-- 1 clé symétrique dérivée du mot de passe avec Argon2
 
 ### Paramètres de Sécurité
 Basé sur les recommandation du NIST 
@@ -26,7 +21,7 @@ https://www.keylength.com/en/4/
 - **Niveau de sécurité** : 256 bits (2019 -2030)
 - **Taille des clés** :  
   - symétrique : 256 bits
-  - Asymétrique : 512 bits
+  - Asymétrique sur courbes elliptiques : 512 bits
   - Hash : 512 bits
 - **Vecteurs d'initialisation (IVs)** : 192 bits
 
@@ -39,7 +34,7 @@ Pour gérer la confidentialité des discussions qui transitent sur le réseau en
 - **Chiffrement Symétrique** : XSalsa20-Poly1305
 - **Signature Numérique** : Ed25519
 - **Chiffrement Hybride** : 
-  - **dérivation de clé** : X25519
+  - **Dérivation de clé** : X25519
   - **Chiffrement** : XSalsa20-Poly1305
 
 À noter que XSalsa20 utilise un nonce de 192 bits et 64 bits pour le compteur. Ce qui nous permet : 
@@ -48,9 +43,15 @@ Pour gérer la confidentialité des discussions qui transitent sur le réseau en
 ce qui représente 1 zétaoctet. (On est large)
 - Nombre max de message : $2^{80}$ messages pour éviter les collisions de nonce.
 
+La taille et le nombre de messages limite sont tellement grands que nous n'avons pas besoin de nous en soucier.
+
 ### Aléatoire Cryptographique
-Toutes les fonctions necessitant de l'aléatoire cryptographique utiliseront la librairie rand_core avec la fonction OsRng 
+Toutes les fonctions nécessitant de l'aléatoire cryptographique utiliseront la librairie rand_core avec la fonction OsRng 
 qui va chercher l'entropie dans l'os (pour linux : /dev/urandom).
+
+## Gestion des clés
+
+
 
 ## Fonctionnalités de l'Application
 ### Création d'un compte
@@ -147,13 +148,7 @@ le serveur renvoie un nonce à 0. Le vrai nonce est envoyé seulement si la date
 	-  **Chiffrement de Bout en Bout** : Les messages sont chiffrés de bout en bout, garantissant que seuls les destinataires prévus peuvent les déchiffrer.
 	- **Stockage Sécurisé des Clés** : Les clés privées des utilisateurs sont stockées chiffrées sur le serveur, empêchant l'accès non autorisé même en cas de compromission du serveur
 	- **Authentification Forte** : Utilisation de Argon2 pour le hachage des mots de passe, garantissant une résistance aux attaques par force brute.
-	
 
-## Conclusion
-En résumé, ce projet a mis en œuvre une architecture cryptographique robuste pour assurer la sécurité des communications entre les utilisateurs. En utilisant des algorithmes de chiffrement modernes et des techniques de gestion des clés sécurisées, nous avons pu garantir la confidentialité, l'intégrité et l'authenticité des messages échangés. Les fonctionnalités telles que la connexion sécurisée, le changement de mot de passe et l'envoi de messages différés ont été soigneusement conçues pour répondre aux exigences de sécurité tout en offrant une expérience utilisateur fluide. Les considérations de sécurité, y compris la protection contre les adversaires actifs et les serveurs honnêtes mais curieux, ont été intégrées tout au long du développement.
-
-## Code Source
-Incluez un lien vers le dépôt de code source ou des instructions pour accéder au code.
 
 ## Fonctionnalités Supplémentaires (Bonus)
 ### Utilisation de Time-Lock Puzzles
@@ -168,10 +163,10 @@ Les Time-Lock Puzzles sont des mécanismes cryptographiques qui permettent de ch
    - Si le client décide de télécharger le message avant la date de déchiffrement, le serveur envoie toutes les informations nécessaires,
    mais génère un puzzle temporel qui prendra le temps nécessaire en fonction du temps restant avant la date prévue.
     - Le serveur chiffre le nonce avec ce puzzle pour obtenir $P(nonce)$.
-3. **Envoi du Message** :
+3. **Envoi du Message** :
     
     - Le serveur envoie au récepteur le message chiffré et le puzzle temporel $P$.
-4. **Résolution du Puzzle** :
+4. **Résolution du Puzzle** :
     
     - Le récepteur peut télécharger le message à tout moment, mais il ne pourra pas déchiffrer le message avant d'avoir résolu le puzzle temporel $P$.
     - Si la date prévue est atteinte, il pourra soit récupérer le nonce en ayant résolu le puzzle s'il est hors ligne, soit le récupérer directement sur le serveur.
@@ -184,3 +179,5 @@ Les Time-Lock Puzzles sont des mécanismes cryptographiques qui permettent de ch
 - La puissance de calcul varie d'un client à l'autre, donc le programme doit s'adapter en fonction de la machine du client.
 
 
+## Conclusion
+En résumé, ce projet a mis en œuvre une architecture cryptographique robuste pour assurer la sécurité des communications entre les utilisateurs. En utilisant des algorithmes de chiffrement modernes et des techniques de gestion des clés sécurisées, nous avons pu garantir la confidentialité, l'intégrité et l'authenticité des messages échangés. Les fonctionnalités telles que la connexion sécurisée, le changement de mot de passe et l'envoi de messages différés ont été soigneusement conçues pour répondre aux exigences de sécurité tout en offrant une expérience utilisateur fluide. Les considérations de sécurité, y compris la protection contre les adversaires actifs et les serveurs honnêtes mais curieux, ont été intégrées tout au long du développement.
