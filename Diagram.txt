@@ -1,0 +1,107 @@
+Creation compte :
+@startuml
+actor User
+participant Client
+participant Server
+
+User -> Client: Entre nom d'utilisateur & mot de passe
+Client -> Client: Génère un sel aléatoire
+Client -> Client: K_{0-768} = Argon2id(sel || MotDePasse)
+Client -> Client: Divise K en K_{0-512} et K_{512-768}
+Client -> Server: Envoie K_{0-512} (hash du mot de passe)
+
+Client -> Client: Génère deux paires de clés asymétriques (chiffrement et signature)
+Client -> Client: Utilise K_{512-768} pour chiffrer les clés privées
+Client -> Server: Envoie paires de clés asymétriques chiffrées & le sel
+@enduml
+
+Authentification :
+
+@startuml
+actor User
+participant Client
+participant Server
+
+Client -> Server: Demande le sel
+User -> Client: Entre identifiants
+Client -> Client: K_{0-768} = Argon2id(sel || MotDePasse)
+Client -> Server: Envoie K_{0-512} (hash du mot de passe) pour authentification
+
+Server -> Client: Envoie les clés privées (si authentification réussie)
+Server -> Client: Retourne un message d'erreur (si authentification échoue)
+
+Client -> Client: Utilise K_{512-768} pour déchiffrer les clés privées
+@enduml
+
+Reset mot de passe :
+@startuml
+actor User
+participant Client
+participant Server
+
+User -> Client: Doit être connecté pour changer le mot de passe
+Client -> Client: Génère un nouveau sel aléatoire (NewSel)
+Client -> Client: K1_{0-512} = Argon2id(OldSel || OldMotDePasse)
+Client -> Client: K2_{0-512} = Argon2id(NewSel || NewMotDePasse)
+
+Client -> Client: Déchiffre les clés privées avec K1_{512-768}
+Client -> Client: Chiffre les clés privées avec K2_{512-768}
+
+Client -> Server: Envoie requête de changement de mot de passe avec K1_{0-512}, K2_{0-512}, clés privées chiffrées, et nom d'utilisateur
+Server -> Server: Met à jour les informations de l'utilisateur
+@enduml
+
+
+Envoie Message :
+
+@startuml
+actor Sender
+actor Receiver
+participant Client
+participant Server
+
+Sender -> Client: Doit être connecté pour envoyer un message
+Client -> Server: Demande la clé publique de chiffrement du récepteur
+Client -> Client: Génère un nonce aléatoire (N)
+Client -> Client: Chiffre le message avec une dryocBox (chiffrement hybride)
+Client -> Client: Signe les données authentifiées avec la clé privée de l'expéditeur
+note right of Client
+    Données authentifiées :
+    - Receiver : Nom de l'utilisateur du destinataire
+    - Sender : Nom de l'utilisateur de l'expéditeur
+    - Date : Date de déchiffrement
+end note
+Client -> Server: Envoie message chiffré, nonce et données authentifiées
+
+Receiver -> Server: Demande le message
+Server -> Server: Vérifie la date de déchiffrement
+alt Date de déchiffrement passée
+    Server -> Receiver: Envoie le vrai nonce et le message
+else Date de déchiffrement non passée
+    Server -> Receiver: Envoie un nonce à 0
+end
+@enduml
+
+
+Reception Message :
+
+@startuml
+actor Receiver
+participant Client
+participant Server
+
+Receiver -> Client: Doit être connecté pour recevoir un message
+Receiver -> Client: Télécharge le message à tout moment
+Client -> Server: Demande le message
+
+Server -> Client: Envoie le message avec nonce et données authentifiées
+
+Client -> Client: Vérifie si le nonce est différent de 0
+alt Nonce différent de 0
+    Client -> Client: Déchiffre le message
+else Nonce à 0
+    Client -> Client: Attend la date de déchiffrement
+end
+
+Client -> Client: Vérifie les données authentifiées avec la clé publique de l'expéditeur
+@enduml
