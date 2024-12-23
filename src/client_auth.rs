@@ -61,6 +61,7 @@ impl ClientAuth {
         // Convertir Vec<u8> en SecretKey
         self.private_key_encryption = SecretKey::try_from(&private_key_encryption[..]).expect("unable to convert to SecretKey");
         self.private_key_signature = StackByteArray::<64>::try_from(&private_key_signature[..]).expect("unable to convert to SecretKey");
+
     }
 
     pub fn send_message(&self, recipient: &str,file_name: &str , file: Vec<u8>, date: &str, server: &mut Server) -> Result<(), Error> {

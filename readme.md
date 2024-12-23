@@ -50,7 +50,14 @@ Toutes les fonctions nécessitant de l'aléatoire cryptographique utiliseront la
 qui va chercher l'entropie dans l'os (pour linux : /dev/urandom).
 
 ## Gestion des clés
+Un utilisateur possède : 
+- un mot de passe.
+- une clé symétrique de 256 bits dérivée de son mot de passe.
+- une clé asymétrique de 512 bits pour le chiffrement des messages (privEncrypt, pubEncrypt).
+- une clé asymétrique de 512 bits pour la signature des messages (privSignature, pubSignature).
 
+À noter que les clés asymétriques n'ont pas exactement cette taille dans mon implémentation. La clé de chiffrement 
+est de 256 bits, et la clé de signature est composée d'une clé privée de 512 bits et d'une clé publique de 256 bits.
 
 
 ## Fonctionnalités de l'Application
