@@ -185,6 +185,8 @@ Les Time-Lock Puzzles sont des mécanismes cryptographiques qui permettent de ch
 - Peut nécessiter des ressources de calcul importantes pour résoudre le puzzle.
 - La puissance de calcul varie d'un client à l'autre, donc le programme doit s'adapter en fonction de la machine du client.
 
+## Code source 
 
+https://github.com/Andrea-Graf/CAA_MiniProjet
 ## Conclusion
 En résumé, ce projet a mis en œuvre une architecture cryptographique robuste pour assurer la sécurité des communications entre les utilisateurs. En utilisant des algorithmes de chiffrement modernes et des techniques de gestion des clés sécurisées, nous avons pu garantir la confidentialité, l'intégrité et l'authenticité des messages échangés. Les fonctionnalités telles que la connexion sécurisée, le changement de mot de passe et l'envoi de messages différés ont été soigneusement conçues pour répondre aux exigences de sécurité tout en offrant une expérience utilisateur fluide. Les considérations de sécurité, y compris la protection contre les adversaires actifs et les serveurs honnêtes mais curieux, ont été intégrées tout au long du développement.
