@@ -34,9 +34,9 @@ impl AuthenticateData{
         }
     }
 
-    pub fn verify_detached(&self, public_key: &SigningKeyPair<dryoc::sign::PublicKey, dryoc::dryocbox::StackByteArray<64>>) -> bool {
+    pub fn verify_detached(&self, public_key: &dryoc::sign::PublicKey) -> bool {
 
-        self.signature.verify(&public_key.public_key).is_ok()
+        self.signature.verify(public_key).is_ok()
     }
 
 }

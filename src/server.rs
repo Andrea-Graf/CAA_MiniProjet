@@ -63,9 +63,16 @@ impl Server {
             Err(anyhow!("User not found"))
         }
     }
-    pub fn get_public_key(&self, username: &str) -> Result<&dryoc::keypair::PublicKey, anyhow::Error> {
+    pub fn get_public_key_encrypt(&self, username: &str) -> Result<&dryoc::keypair::PublicKey, anyhow::Error> {
         if let Some(client) = self.users.get(username) {
             Ok(&client.public_key_encryption)
+        } else {
+            Err(anyhow!("User not found"))
+        }
+    }
+    pub fn get_public_key_sign(&self, username: &str) -> Result<&dryoc::keypair::PublicKey, anyhow::Error> {
+        if let Some(client) = self.users.get(username) {
+            Ok(&client.public_key_signature)
         } else {
             Err(anyhow!("User not found"))
         }

@@ -65,7 +65,7 @@ impl ClientAuth {
     }
 
     pub fn send_message(&self, recipient: &str,file_name: &str , file: Vec<u8>, date: &str, server: &mut Server) -> Result<(), Error> {
-        let recipient_public_key = server.get_public_key(recipient).expect("unable to get public key");
+        let recipient_public_key = server.get_public_key_encrypt(recipient).expect("unable to get public key");
         let nonce_file = Nonce::gen();
         let nonce_file_name = Nonce::gen();
 
@@ -125,7 +125,6 @@ impl ClientAuth {
     // Méthode pour recevoir des messages
     pub fn receive_message(&self, server: &Server) -> Result<(),Error> {
         let boite_de_reception = server.receive_message(&self.username, &self.password_hash)?;
-        let keysign: dryoc::sign::SigningKeyPair<dryoc::sign::PublicKey, dryoc::dryocbox::StackByteArray<64>> = SigningKeyPair::from_secret_key(self.private_key_signature.clone());
 
         let mut user_reception_dir = format!("reception/{}", &self.username);
         fs::create_dir_all(&user_reception_dir)?;
@@ -137,14 +136,14 @@ impl ClientAuth {
             let file_encrypted = DryocBox::from_bytes(&message_app.file_encrypted).expect("failed to read box");
             let file_name_encrypted = DryocBox::from_bytes(&message_app.file_name_encrypted).expect("failed to read box");
 
-            let public_key_sender = server.get_public_key(&message_app.authenticate_data.sender)?;
+            let public_key_sender_encrypt = server.get_public_key_encrypt(&message_app.authenticate_data.sender)?;
 
-            let file_name_vec = file_name_encrypted.decrypt_to_vec(&message_app.nonce_file_name, &public_key_sender, &self.private_key_encryption)?;
+            let file_name_vec = file_name_encrypted.decrypt_to_vec(&message_app.nonce_file_name, &public_key_sender_encrypt, &self.private_key_encryption)?;
             let file_name = String::from_utf8(file_name_vec)?;
             user_reception_dir.push_str(format!("/{}", file_name).as_str());
 
             if !message_app.nonce_file.eq(&StackByteArray::<24>::default()) {
-                let file = file_encrypted.decrypt_to_vec(&message_app.nonce_file, &public_key_sender, &self.private_key_encryption)?;
+                let file = file_encrypted.decrypt_to_vec(&message_app.nonce_file, &public_key_sender_encrypt, &self.private_key_encryption)?;
                 fs::write(&user_reception_dir, file)?;
             } else {
                 fs::write(&user_reception_dir, &message_app.file_encrypted)?;
@@ -152,7 +151,8 @@ impl ClientAuth {
 
             println!("Message saved to {:?}", user_reception_dir);
 
-            if message_app.authenticate_data.verify_detached(&keysign) {
+            let public_key_sender_sign = server.get_public_key_sign(&message_app.authenticate_data.sender)?;
+            if message_app.authenticate_data.verify_detached(&public_key_sender_sign) {
                 println!("Signature valid");
             } else {
                 println!("Signature invalid");
